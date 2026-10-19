@@ -134,7 +134,7 @@ with st.sidebar:
 
 # ---------- Header ----------
 st.markdown('<div class="hero"><h1>Retail Sales Analysis and Forecasting</h1>'
-            '<p>Explore five years of daily store sales and compare three time series forecasting models.</p></div>',
+            '<p>Explore daily store sales from 2013 to 2017 and compare three forecasting models.</p></div>',
             unsafe_allow_html=True)
 
 try:

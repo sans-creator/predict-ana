@@ -1,6 +1,6 @@
 # Retail Sales Analysis and Time Series Forecasting
 
-A college machine learning project that analyses five years of retail sales data and forecasts future daily sales.
+A college machine learning project that analyses retail sales data from 2013 to 2017 and forecasts future daily sales.
 
 ## Objective
 Predict the **total number of units sold per day** across all 54 stores and 33 product families of Corporacion Favorita (an Ecuadorian supermarket chain). We hold out the last 30 days as a test set, forecast them with three models, and compare the models using MAE and RMSE.
