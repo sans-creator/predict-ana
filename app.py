@@ -86,8 +86,9 @@ def make_features(series):
 
 def linear_regression(series, n):
     df = make_features(series)
-    lr = LinearRegression().fit(df[FEATURES][:-n], df["sales"][:-n])
-    return lr.predict(df[FEATURES][-n:])
+    X = pd.get_dummies(df[FEATURES], columns=["dayofweek"], dtype=int)  # one-hot day of week
+    lr = LinearRegression().fit(X[:-n], df["sales"][:-n])
+    return lr.predict(X[-n:])
 
 
 def sarima(series, n):
@@ -104,7 +105,7 @@ def random_forest(series, n):
 
 MODELS = {"Linear Regression": linear_regression, "SARIMA": sarima, "Random Forest": random_forest}
 MODEL_INFO = {
-    "Linear Regression": "Straight-line regression on day of week, month, day, lag_7 and rolling_mean_7.",
+    "Linear Regression": "Straight-line regression on one-hot encoded day of week, month, day, lag_7 and rolling_mean_7.",
     "SARIMA": "SARIMA (1,1,1)x(1,1,1,7), trained on the last 365 days for speed.",
     "Random Forest": "200 decision trees on the same features as Linear Regression.",
 }
