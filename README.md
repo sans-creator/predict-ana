@@ -35,3 +35,9 @@ pip install -r requirements.txt
 jupyter notebook notebooks/sales_forecasting.ipynb
 ```
 Then run all cells.
+
+### Demo UI
+A simple Streamlit web app with 3 tabs (Overview, EDA, Forecast). In the Forecast tab you can pick the test period and the models, then compare their predictions and errors.
+```bash
+streamlit run app.py
+```
