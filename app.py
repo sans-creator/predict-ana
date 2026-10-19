@@ -123,8 +123,8 @@ with st.sidebar:
     st.divider()
     st.markdown("**Models**")
     for name, info in MODEL_INFO.items():
-        st.markdown(f"<span style='color:{COLORS[name]};font-weight:700'>{name}</span><br>"
-                    f"<span style='font-size:.85rem;color:#6b7280'>{info}</span>", unsafe_allow_html=True)
+        with st.expander(name):
+            st.write(info)
 
 # ---------- Header ----------
 st.markdown('<div class="hero"><h1>Retail Sales Analysis and Forecasting</h1>'
