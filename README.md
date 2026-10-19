@@ -15,19 +15,21 @@ Files used (put them in `data/`): `train.csv`, `oil.csv`, `holidays_events.csv`.
 5. **Evaluation**: MAE and RMSE for each model, plus a plot of actual vs predicted sales.
 
 ## Models
-- **Holt-Winters Exponential Smoothing** (additive trend and seasonality, `seasonal_periods=7`)
+We predict the **total units sold per day** across all stores and product families.
+
+- **Linear Regression** with features: day of week, month, day, `lag_7`, `rolling_mean_7`
 - **SARIMA** `(1,1,1)x(1,1,1,7)`, trained on the last 1 year
-- **Random Forest** with features: day of week, month, day, `lag_7`, `rolling_mean_7`
+- **Random Forest** (200 trees) on the same features as Linear Regression
 
 ## Results (last 30 days)
 
-| Model         | MAE    | RMSE   |
-|---------------|--------|--------|
-| Random Forest | 54,050 | 63,279 |
-| Holt-Winters  | 56,882 | 85,673 |
-| SARIMA        | 60,118 | 90,266 |
+| Model             | MAE    | RMSE    |
+|-------------------|--------|---------|
+| Random Forest     | 54,050 | 63,279  |
+| SARIMA            | 60,118 | 90,266  |
+| Linear Regression | 80,990 | 101,264 |
 
-Random Forest is the best model. It uses recent actual sales as features, which gives it an advantage over the other two models.
+Random Forest is the best model. Linear Regression and Random Forest use recent actual sales as features (one-step-ahead), while SARIMA forecasts all 30 days at once.
 
 ## How to run
 ```bash

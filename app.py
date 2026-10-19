@@ -10,14 +10,14 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.tsa.statespace.sarimax import SARIMAX
+from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 
 DATA = "data"
 PRIMARY = "#2563eb"
-COLORS = {"Actual": "#111827", "Holt-Winters": "#2563eb", "SARIMA": "#f59e0b", "Random Forest": "#10b981"}
+COLORS = {"Actual": "#111827", "Linear Regression": "#2563eb","SARIMA": "#f59e0b", "Random Forest": "#10b981"}
 
 st.set_page_config(page_title="Retail Sales Forecasting", layout="wide")
 
@@ -71,43 +71,48 @@ def load_data():
 
 
 # ---------- Models (same as the notebook) ----------
-def holt_winters(train_s, n):
-    model = ExponentialSmoothing(train_s, trend="add", seasonal="add", seasonal_periods=7).fit()
-    return model.forecast(n).values
+FEATURES = ["dayofweek", "month", "day", "lag_7", "rolling_mean_7"]
 
 
-def sarima(train_s, n):
-    model = SARIMAX(train_s[-365:], order=(1, 1, 1), seasonal_order=(1, 1, 1, 7)).fit(disp=False)
-    return model.forecast(n).values
-
-
-def random_forest(series, n):
+def make_features(series):
     df = series.to_frame("sales")
     df["dayofweek"] = df.index.dayofweek
     df["month"] = df.index.month
     df["day"] = df.index.day
     df["lag_7"] = df["sales"].shift(7)
     df["rolling_mean_7"] = df["sales"].shift(1).rolling(7).mean()
-    df = df.dropna()
-    features = ["dayofweek", "month", "day", "lag_7", "rolling_mean_7"]
+    return df.dropna()
+
+
+def linear_regression(series, n):
+    df = make_features(series)
+    lr = LinearRegression().fit(df[FEATURES][:-n], df["sales"][:-n])
+    return lr.predict(df[FEATURES][-n:])
+
+
+def sarima(series, n):
+    model = SARIMAX(series[:-n][-365:], order=(1, 1, 1), seasonal_order=(1, 1, 1, 7)).fit(disp=False)
+    return model.forecast(n).values
+
+
+def random_forest(series, n):
+    df = make_features(series)
     rf = RandomForestRegressor(n_estimators=200, random_state=42, n_jobs=-1)
-    rf.fit(df[features][:-n], df["sales"][:-n])
-    return rf.predict(df[features][-n:])
+    rf.fit(df[FEATURES][:-n], df["sales"][:-n])
+    return rf.predict(df[FEATURES][-n:])
 
 
-MODELS = {"Holt-Winters": holt_winters, "SARIMA": sarima, "Random Forest": random_forest}
+MODELS = {"Linear Regression": linear_regression, "SARIMA": sarima, "Random Forest": random_forest}
 MODEL_INFO = {
-    "Holt-Winters": "Exponential smoothing with additive trend and weekly seasonality (period 7).",
+    "Linear Regression": "Straight-line regression on day of week, month, day, lag_7 and rolling_mean_7.",
     "SARIMA": "SARIMA (1,1,1)x(1,1,1,7), trained on the last 365 days for speed.",
-    "Random Forest": "200 trees on day of week, month, day, lag_7 and rolling_mean_7.",
+    "Random Forest": "200 decision trees on the same features as Linear Regression.",
 }
 
 
 @st.cache_data(show_spinner=False)
 def run_model(name, series, n):
-    if name == "Random Forest":
-        return MODELS[name](series, n)
-    return MODELS[name](series[:-n], n)
+    return MODELS[name](series, n)
 
 
 # ---------- Sidebar ----------
@@ -255,8 +260,8 @@ with tab3:
 
         st.dataframe(results.style.format({"MAE": "{:,.0f}", "RMSE": "{:,.0f}"}),
                      hide_index=True, use_container_width=True)
-        st.markdown('<div class="note">Random Forest uses recent actual sales (lag_7 and rolling_mean_7), '
-                    'so it predicts one day ahead. Holt-Winters and SARIMA forecast the whole test period at once.</div>',
+        st.markdown('<div class="note">Linear Regression and Random Forest use recent actual sales '
+                    '(lag_7 and rolling_mean_7), so they predict one day ahead. SARIMA forecasts the whole test period at once.</div>',
                     unsafe_allow_html=True)
     else:
         st.markdown('<div class="note">Choose a test period and the models, then click <b>Run forecast</b>. '
