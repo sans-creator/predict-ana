@@ -1,105 +1,132 @@
-# Retail Sales Analysis and Time Series Forecasting
+# Retail Sales Analysis and Time Series Forecasting Using Machine Learning
 
-A college machine learning project that analyses retail sales data from 2013 to 2017 and forecasts future daily sales.
+A college machine learning project that analyses five years of retail sales (2013 to 2017) and forecasts
+future daily sales with statistical and supervised learning models.
 
 ## Objective
-Predict the **total number of units sold per day** across all 54 stores and 33 product families of Corporacion Favorita (an Ecuadorian supermarket chain). We hold out the last 30 days as a test set, forecast them with three models, and compare the models using MAE and RMSE.
+Forecast the **total number of units sold per day** across all 54 stores and 33 product families of
+Corporación Favorita, an Ecuadorian supermarket chain. Four models are compared fairly on the same 30-day
+test period using **MAE** and **RMSE**, and each can produce a real forecast of the days after the data ends.
+
+| Approach | Models |
+|---|---|
+| Statistical time series | **SARIMA**, **Holt-Winters Exponential Smoothing** |
+| Supervised machine learning | **Linear Regression**, **Random Forest Regressor** |
 
 ## Dataset
-Kaggle: [Store Sales - Time Series Forecasting](https://www.kaggle.com/competitions/store-sales-time-series-forecasting)
+Kaggle: [Store Sales - Time Series Forecasting](https://www.kaggle.com/competitions/store-sales-time-series-forecasting).
+Download the files and place them in `data/` (not tracked by git).
 
-Download these files and place them in the `data/` folder (it is not tracked by git):
+| File | Rows | Used for |
+|---|---|---|
+| `train.csv` | 3,000,888 | daily sales per store and product family (main data and target) |
+| `test.csv` | 28,512 | the official future period (16-31 Aug 2017, no sales given); confirms where forecasts start |
+| `stores.csv` | 54 | store city, state, type and cluster (store analysis) |
+| `oil.csv` | 1,218 | daily oil price (oil analysis) |
+| `holidays_events.csv` | 350 | holidays (holiday effect analysis) |
+| `transactions.csv` | 83,488 | transactions per store per day (transaction analysis) |
 
-| File | Used for |
-|---|---|
-| `data/train.csv` | daily sales per store and product family (main data) |
-| `data/oil.csv` | daily oil price (used in EDA) |
-| `data/holidays_events.csv` | holidays and events (loaded and previewed) |
-
-## Folder structure
+## Project structure
 ```
 .
-├── data/                         # Kaggle CSVs (not in git)
+├── app.py                        # Streamlit dashboard (UI only)
+├── src/
+│   ├── data.py                   # loading and preprocessing
+│   ├── models.py                 # the four models, recursive forecasting, evaluation
+│   └── ui.py                     # dashboard styling: CSS, cards, chart theme
 ├── notebooks/
-│   └── sales_forecasting.ipynb   # full analysis and models
-├── results/                      # saved plots
-├── .streamlit/config.toml        # app theme
-├── app.py                        # Streamlit demo app
-├── requirements.txt
-└── README.md
+│   └── sales_forecasting.ipynb   # full analysis, model selection, evaluation, checks
+├── results/                      # plots and CSVs written by the notebook
+├── data/                         # Kaggle CSVs (not in git)
+├── .streamlit/config.toml        # dark theme
+└── requirements.txt
 ```
+The app and the notebook import the same `src/` code, so they always give the same numbers.
 
-## Preprocessing
-1. Load `train.csv` with parsed dates and check shape, data types, missing values and duplicates.
-2. Drop duplicate rows.
-3. Aggregate to **daily total sales** (sum of sales over all stores and families for each date).
-4. Fill missing dates: 4 days (25 December each year) are missing, so the series is reindexed to a full daily range and filled by linear interpolation.
-5. Merge the daily oil price and interpolate its missing values (oil is not traded on weekends and holidays).
-
-## Exploratory Data Analysis
-
-| | |
-|---|---|
-| ![Daily sales](results/01_daily_sales.png) | ![Monthly sales](results/02_monthly_sales.png) |
-| ![Sales by weekday](results/03_sales_by_weekday.png) | ![Top families](results/04_top_families.png) |
-| ![Promotion vs sales](results/05_promotion_vs_sales.png) | ![Oil vs sales](results/06_oil_vs_sales.png) |
-
-![Seasonal decomposition](results/07_seasonal_decomposition.png)
-
-Key findings:
-- Sales have a steady upward trend and a strong weekly pattern; weekends are the busiest days.
-- Grocery, beverages and produce make up most of the sales.
-- Promotions are positively related to sales (correlation 0.58).
-- Oil price is negatively related to sales (correlation -0.63).
+## Preprocessing decisions
+1. **Aggregation.** `train.csv` is summed per day to one series of total units sold (1,688 days).
+2. **Christmas.** 25 December is missing in every year because all stores are closed. These days are recorded
+   as **0 sales** (closed), not interpolated.
+3. **1 January** is also a closure day (only a few stores open, sales about 1-2% of a normal day).
+4. **Model input.** For training only, each closure day is replaced by the same weekday one week earlier, so
+   one-off shutdowns do not distort the models. The test period has no closure days.
+5. **Oil** prices exist only on trading days. Oil analysis joins on those real days only (no filling).
+6. **Promotions** are 0 for every row before April 2014 (not recorded), so promotion analysis starts then.
+7. **Holidays.** Only national holidays apply to the chain-wide total. Transferred holidays and "Work Day"
+   rows are excluded because they are normal working days.
+8. **Joins** are validated: `stores` joins one-to-one on `store_nbr`; `transactions` joins on `date` + `store_nbr`.
 
 ## Models
-The target (daily sales) is a **continuous number**, so this is a **regression** problem, not classification. Classification would only make sense if we predicted a category, such as "high" vs "low" sales days.
 
-| Model | Type | Details |
+| Model | Settings | How it forecasts |
 |---|---|---|
-| **Linear Regression** | Regression | Features: one-hot encoded day of week, month, day, `lag_7`, `rolling_mean_7` |
-| **Random Forest** | Regression (tree ensemble) | 200 trees on the same features (day of week as a number) |
-| **SARIMA** | Time series | `(1,1,1)x(1,1,1,7)`, trained on the last 1 year for speed |
+| SARIMA | (1,0,1)x(1,1,1,7), last 730 days | fitted time-series model |
+| Exponential Smoothing | Holt-Winters, damped additive trend, additive weekly seasonality | fitted time-series model |
+| Linear Regression | one-hot weekday and month, day, year, `lag_7`, `lag_14`, `rolling_mean_28` | recursive |
+| Random Forest | 300 trees, `min_samples_leaf=2`, same features | recursive |
 
-`lag_7` is the sales 7 days earlier and `rolling_mean_7` is the average of the previous 7 days. Linear Regression and Random Forest use the real recent sales on the test days (one-step-ahead forecast), while SARIMA forecasts all 30 days at once.
+- **Recursive forecasting**: Linear Regression and Random Forest predict one day at a time, and each prediction
+  becomes the lag feature for later days. They never see actual future sales.
+- **Model selection**: settings were chosen with rolling validation on six 30-day windows (January to July 2017),
+  before the test period. The comparison tables are in the notebook.
 
-## Results (test set = last 30 days)
+## Evaluation
+- **Chronological split**: train 1 Jan 2013 to 16 Jul 2017, test 17 Jul to 15 Aug 2017 (last 30 days).
+- **Same task for all models**: each forecasts all 30 test days in one go from the same starting point.
+- **Metrics**: MAE, RMSE, MAPE and R², computed from the actual predictions. A seasonal naive baseline
+  (repeat the last week) is included as a reference.
 
-| Model             | MAE    | RMSE   |
-|-------------------|--------|--------|
-| Random Forest     | 54,050 | 63,279 |
-| Linear Regression | 64,954 | 80,772 |
-| SARIMA            | 60,118 | 90,266 |
+| Model | MAE | RMSE | MAPE | R² |
+|---|---|---|---|---|
+| **Random Forest** | **49,569** | **68,483** | **5.9%** | **0.689** |
+| Linear Regression | 57,777 | 75,944 | 6.7% | 0.618 |
+| Exponential Smoothing | 57,897 | 87,234 | 6.7% | 0.495 |
+| *Seasonal naive (baseline)* | *60,672* | *91,696* | *7.0%* | *0.443* |
+| SARIMA | 61,381 | 92,511 | 7.2% | 0.433 |
+
+Random Forest is best on every metric in this test period. SARIMA did not beat the simple baseline here.
+These values come from `results/model_comparison.csv` (written by the notebook) and are recalculated live in the app.
 
 ![Actual vs predictions](results/08_actual_vs_predictions.png)
 
-## Conclusion
-- **Random Forest is the best model** on both MAE and RMSE. It learns non-linear patterns and uses the most recent sales through its lag features.
-- **Linear Regression** improved a lot after one-hot encoding the day of week (RMSE dropped from 101,264 to 80,772).
-- **SARIMA has a lower MAE but a higher RMSE than Linear Regression.** MAE is the average size of the error, while RMSE squares each error before averaging, so it punishes large mistakes more. SARIMA is closer on most days but makes a few big misses, which pushes its RMSE up.
-- Possible improvements: add holiday and oil features, tune model parameters, and forecast per store or product family.
+## Dashboard
+Four sections, dark theme:
+1. **Overview**: total sales, average daily sales, highest day, top family, sales trend, datasets.
+2. **Sales Analytics**: monthly and yearly patterns, weekdays, product families, stores, national holiday effects,
+   promotions, oil prices and transactions.
+3. **Forecasting**: choose a model and a 7, 14 or 30-day horizon, generate a forecast starting 16 Aug 2017,
+   view it as a chart and a table, and download it as CSV.
+4. **Model Comparison**: MAE, RMSE, MAPE and R² for all models, actual vs predicted, error by forecast day.
 
-## Requirements
-Python 3.10+ and the libraries in `requirements.txt`:
-pandas, numpy, matplotlib, seaborn, statsmodels, scikit-learn, streamlit, plotly, jupyter.
+## How to run
+Requires Python 3.11 or newer (tested on 3.13).
 
 ```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows  (macOS/Linux: source .venv/bin/activate)
 pip install -r requirements.txt
 ```
 
-## How to run
-
-**Notebook**
-```bash
-jupyter notebook notebooks/sales_forecasting.ipynb
-```
-Then run all cells (Kernel > Restart & Run All). Plots are saved to `results/`.
-
-**Demo app**
+**Dashboard** (from the project root):
 ```bash
 streamlit run app.py
 ```
-Run it from the project root, then open http://localhost:8501. It has three tabs: Overview, Exploratory Analysis and Forecast. In the Forecast tab you can choose the test period (7 to 60 days) and the models, then compare their predictions and errors.
+Open http://localhost:8501. The first load takes a few seconds while the data is prepared and the models are trained;
+after that, results are cached.
+
+**Notebook**:
+```bash
+jupyter notebook notebooks/sales_forecasting.ipynb
+```
+Select the kernel of the `.venv` environment, then run all cells (about 1-2 minutes). Plots and CSVs are saved to `results/`.
+
+## Limitations
+- One aggregate series: no forecasts per store or product family.
+- Holidays, promotions and oil are analysed but not used as model features.
+- Some product families have recording gaps in 2014 and early 2015 (e.g. Produce), which remain in the training data.
+- The test period is a single 30-day window, so small differences between models should not be over-interpreted.
+- Random Forest cannot predict values outside the range seen in training, and recursive errors grow with the horizon.
+- Future forecasts (after 15 Aug 2017) cannot be scored because Kaggle does not publish the real sales.
 
 ## Authors
 - [sans-creator](https://github.com/sans-creator)
